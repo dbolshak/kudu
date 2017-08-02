@@ -113,4 +113,6 @@ client
 ```
 No comments here, really user friendly API.
 
-Also we performed a lot of performance, operation tests, compression and encodings research provided by Kudu. But all of these is another subject. Kudu must go on!
+Also we performed a lot of performance and operation tests, compression and encodings research.
+But all of these is another subject and if the articale is usefull I will follow with my findings.
+Kudu must go on!
