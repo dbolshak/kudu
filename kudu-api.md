@@ -69,21 +69,21 @@ val kuduTableName = args("kudu-table")
 
 val schemaAsString = args(1)
 val schema: org.apache.kudu.Schema = parseInputSchema(schemaAsString)
+val rangeColumn = args(2)
 
 def bound(i: Int) = {
-  val rangeColumn = args(2)
   val bound = schema.newPartialRow()
   bound.addInt(rangeColumn, i)
   bound
 }
 
-val rangeColumns = args(3)
-val partitionColumns = args(4)
-val numberOfPartitions = args(5).toInt
+val rangeColumns = List(rangeColumn).asJava
+val partitionColumns = args(3)
+val numberOfPartitions = args(4).toInt
 
 client.createTable(kuduTableName, schema, new CreateTableOptions()
   .setNumReplicas(3)
-  .setRangePartitionColumns(rangeColumns.split(',').toList.asJava)
+  .setRangePartitionColumns(rangeColumns)
   .addRangePartition(bound(Int.MinValue), bound(0))
   .addHashPartitions(partitionColumns.split(",").toList.asJava, numberOfPartitions))
 
