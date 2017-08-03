@@ -90,7 +90,6 @@ client.createTable(kuduTableName, schema, new CreateTableOptions()
 val lowerBoundRange = 0.to(10000, step = 100)
 val upperBoundRange = lowerBoundRange.tail :+ Int.MaxValue
 
-
 //usually you call something similar later, when you need to create new range partition
 client.alterTable(kuduTableName, (lowerBoundRange zip upperBoundRange).foldLeft(new AlterTableOptions) { case (opt, (lower, upper)) =>
   opt.addRangePartition(bound(lower), bound(upper))
