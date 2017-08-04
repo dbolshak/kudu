@@ -27,21 +27,21 @@ object ParquetToKuduJob {
 
     val spark = SparkSession.builder().getOrCreate()
     try {
-      val inputPath          = args(0)
-      val kuduMasters        = args(1)
-      val keyFields          = args(2)
-      val partitionColumns   = args(3)
-      val numberOfPartitions = args(4).toInt
+      val inputPath: String = ???
+      val kuduMasters: String = ???
+      val keyFields: scala.collection.immutable.List = ???
+      val partitionColumns: java.util.List = ???
+      val numberOfPartitions: Int = ???
 
       val df = spark.read.parquet(inputPath)
 
       val kuduContext = new KuduContext(kuduMasters, spark.sparkContext)
       val kuduTable = args("kuduTable")
 
-      kuduContext.createTable(kuduTable, df.schema, keyFields.split(","),
+      kuduContext.createTable(kuduTable, df.schema, keyFields,
         new CreateTableOptions()
           .setNumReplicas(3)
-          .addHashPartitions(partitionColumns.split(",").toList.asJava, numberOfPartitions))
+          .addHashPartitions(partitionColumns, numberOfPartitions))
 
       kuduContext.insertIgnoreRows(df, kuduTable)
     } finally {
@@ -62,14 +62,14 @@ So looks like it’s a time to show example with range partition. Unfortunately 
 ```
 val spark = SparkSession.builder().getOrCreate()
 
-val kuduMasters = args(0)
+val kuduMasters: String = ???
 val kuduContext = new KuduContext(kuduMasters, spark.sparkContext)
 
-val kuduTableName = args("kudu-table")
+val kuduTableName: String = ???
 
-val schemaAsString = args(1)
+val schemaAsString: String = ???
 val schema: org.apache.kudu.Schema = parseInputSchema(schemaAsString)
-val rangeColumn = args(2)
+val rangeColumn: String = ???
 
 def bound(i: Int) = {
   val bound = schema.newPartialRow()
@@ -77,17 +77,18 @@ def bound(i: Int) = {
   bound
 }
 
-val rangeColumns = List(rangeColumn).asJava
-val partitionColumns = args(3)
-val numberOfPartitions = args(4).toInt
+val rangeColumns: java.util.List = List(rangeColumn).asJava
+val partitionColumns: java.util.List = ???
+val numberOfPartitions: Int = ???
 
 client.createTable(kuduTableName, schema, new CreateTableOptions()
   .setNumReplicas(3)
   .setRangePartitionColumns(rangeColumns)
   .addRangePartition(bound(Int.MinValue), bound(0))
-  .addHashPartitions(partitionColumns.split(",").toList.asJava, numberOfPartitions))
+  .addHashPartitions(partitionColumns, numberOfPartitions))
 
 val lowerBoundRange = 0.to(10000, step = 100)
+//for production use cases you don't need to use Int.MaxValue
 val upperBoundRange = lowerBoundRange.tail :+ Int.MaxValue
 
 //usually you call something similar later, when you need to create new range partition
@@ -100,6 +101,9 @@ Very important notes here are:
 - ranges can not be overlapped
 - you must call setRangePartitionColumns on client while creating table if you partition by ranges using not full key
 - you must call addRangePartition on client while creating table with initial range, otherwise Kudu will think that you use unbounded range (and because of ranges could not be overlapped you won’t be able to add more ranges later, because any new range will be overlapped with default unbounded range)
+- carefully planing your partition schema could enable so called `partitioning pruning` option. 
+
+In example above there is no something like `keyFields` (as in example before), this information now is provided in `val schema: org.apache.kudu.Schema`.
 
 Final example will cover how to use client to perform narrow scans
 ```
@@ -108,12 +112,15 @@ client
   .addPredicate(KuduPredicate.newComparisonPredicate(
     columnSchema,
     ComparisonOp.EQUAL,
-    valueWhichWeAreLookingFor))
-   .build()
-   .nextRows()
+    valueWhichWeAreLookingFor
+  ))
+  .setProjectedColumnNames(projectedColumns)
+  .build()
+  .nextRows()
 ```
-No comments here, really user friendly API.
+Just on comment here, Kudu is column-oriented storage, providing projected columns (using `setProjectedColumnNames`) can improve your reading throughput.
+Really user friendly API.
 
 Also we performed a lot of performance and operation tests, compression and encodings research.
-But all of these is another subject and if the articale is usefull I will follow with my findings.
+But all of these is another subject and if the article is useful I will follow with my findings.
 Kudu must go on!
