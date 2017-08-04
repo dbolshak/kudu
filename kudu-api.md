@@ -118,7 +118,7 @@ client
   .build()
   .nextRows()
 ```
-Just on comment here, Kudu is column-oriented storage, providing projected columns (using `setProjectedColumnNames`) can improve your reading throughput.
+Just on comment here, as it's already said, Kudu is columnar storage, providing projected columns (using `setProjectedColumnNames`) can improve your reading throughput.
 Really user friendly API.
 
 Also we performed a lot of performance and operation tests, compression and encodings research.
