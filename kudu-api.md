@@ -21,35 +21,35 @@ And yes, there are just really few examples. Honestly it’s enough to get start
 In next few sections I will provide a simplified my source code snippets (sometimes they are partially covered in official documentation).
 
 The following snippet shows the simplest way how to ingest data using spark to Kudu (it should be adopted for production usage for your use-case)
-```
-object ParquetToKuduJob {
-  def main(args: Array[String]): Unit = {
 
-    val spark = SparkSession.builder().getOrCreate()
-    try {
-      val inputPath: String = ???
-      val kuduMasters: String = ???
-      val keyFields: scala.collection.immutable.List = ???
-      val partitionColumns: java.util.List = ???
-      val numberOfPartitions: Int = ???
-
-      val df = spark.read.parquet(inputPath)
-
-      val kuduContext = new KuduContext(kuduMasters, spark.sparkContext)
-      val kuduTable = args("kuduTable")
-
-      kuduContext.createTable(kuduTable, df.schema, keyFields,
-        new CreateTableOptions()
-          .setNumReplicas(3)
-          .addHashPartitions(partitionColumns, numberOfPartitions))
-
-      kuduContext.insertIgnoreRows(df, kuduTable)
-    } finally {
-      spark.stop()
+    object ParquetToKuduJob {
+      def main(args: Array[String]): Unit = {
+    
+        val spark = SparkSession.builder().getOrCreate()
+        try {
+          val inputPath: String = ???
+          val kuduMasters: String = ???
+          val keyFields: scala.collection.immutable.List = ???
+          val partitionColumns: java.util.List = ???
+          val numberOfPartitions: Int = ???
+    
+          val df = spark.read.parquet(inputPath)
+    
+          val kuduContext = new KuduContext(kuduMasters, spark.sparkContext)
+          val kuduTable = args("kuduTable")
+    
+          kuduContext.createTable(kuduTable, df.schema, keyFields,
+            new CreateTableOptions()
+              .setNumReplicas(3)
+              .addHashPartitions(partitionColumns, numberOfPartitions))
+    
+          kuduContext.insertIgnoreRows(df, kuduTable)
+        } finally {
+          spark.stop()
+        }
+      }
     }
-  }
-}
-```
+
 Just to note:
 `partitionColumns` should be subset of `keyFields`.
 all attributes provided in `keyFields` must be not empty.
@@ -59,43 +59,43 @@ In example above only hash partitioning used, but Kudu also provides range parti
 * Range partition starts to shine while you ingest your new data, it’s just increaditable feature for time series applications, or in cases where you need to keep data with fixed window of history (say for last 12 months).
 
 So looks like it’s a time to show example with range partition. Unfortunately there is no ready to go solution just with KuduContext, but it’s not a big deal to use KuduClient. The simplest example looks like
-```
-val spark = SparkSession.builder().getOrCreate()
 
-val kuduMasters: String = ???
-val kuduContext = new KuduContext(kuduMasters, spark.sparkContext)
+    val spark = SparkSession.builder().getOrCreate()
+    
+    val kuduMasters: String = ???
+    val kuduContext = new KuduContext(kuduMasters, spark.sparkContext)
+    
+    val kuduTableName: String = ???
+    
+    val schemaAsString: String = ???
+    val schema: org.apache.kudu.Schema = parseInputSchema(schemaAsString)
+    val rangeColumn: String = ???
+    
+    def bound(i: Int) = {
+      val bound = schema.newPartialRow()
+      bound.addInt(rangeColumn, i)
+      bound
+    }
+    
+    val rangeColumns: java.util.List = List(rangeColumn).asJava
+    val partitionColumns: java.util.List = ???
+    val numberOfPartitions: Int = ???
+    
+    client.createTable(kuduTableName, schema, new CreateTableOptions()
+      .setNumReplicas(3)
+      .setRangePartitionColumns(rangeColumns)
+      .addRangePartition(bound(Int.MinValue), bound(0))
+      .addHashPartitions(partitionColumns, numberOfPartitions))
+    
+    val lowerBoundRange = 0.to(10000, step = 100)
+    //for production use cases you don't need to use Int.MaxValue
+    val upperBoundRange = lowerBoundRange.tail :+ Int.MaxValue
+    
+    //usually you call something similar later, when you need to create new range partition
+    client.alterTable(kuduTableName, (lowerBoundRange zip upperBoundRange).foldLeft(new AlterTableOptions) { case (opt, (lower, upper)) =>
+      opt.addRangePartition(bound(lower), bound(upper))
+    })
 
-val kuduTableName: String = ???
-
-val schemaAsString: String = ???
-val schema: org.apache.kudu.Schema = parseInputSchema(schemaAsString)
-val rangeColumn: String = ???
-
-def bound(i: Int) = {
-  val bound = schema.newPartialRow()
-  bound.addInt(rangeColumn, i)
-  bound
-}
-
-val rangeColumns: java.util.List = List(rangeColumn).asJava
-val partitionColumns: java.util.List = ???
-val numberOfPartitions: Int = ???
-
-client.createTable(kuduTableName, schema, new CreateTableOptions()
-  .setNumReplicas(3)
-  .setRangePartitionColumns(rangeColumns)
-  .addRangePartition(bound(Int.MinValue), bound(0))
-  .addHashPartitions(partitionColumns, numberOfPartitions))
-
-val lowerBoundRange = 0.to(10000, step = 100)
-//for production use cases you don't need to use Int.MaxValue
-val upperBoundRange = lowerBoundRange.tail :+ Int.MaxValue
-
-//usually you call something similar later, when you need to create new range partition
-client.alterTable(kuduTableName, (lowerBoundRange zip upperBoundRange).foldLeft(new AlterTableOptions) { case (opt, (lower, upper)) =>
-  opt.addRangePartition(bound(lower), bound(upper))
-})
-```
 It’s not full, but gives enough clue how it could be applied.
 Very important notes here are:
 - ranges can not be overlapped
@@ -106,18 +106,18 @@ Very important notes here are:
 In example above there is no something like `keyFields` (as in example before), this information now is provided in `val schema: org.apache.kudu.Schema`.
 
 Final example will cover how to use client to perform narrow scans
-```
-client
-  .newScannerBuilder(kuduTable)
-  .addPredicate(KuduPredicate.newComparisonPredicate(
-    columnSchema,
-    ComparisonOp.EQUAL,
-    valueWhichWeAreLookingFor
-  ))
-  .setProjectedColumnNames(projectedColumns)
-  .build()
-  .nextRows()
-```
+
+    client
+      .newScannerBuilder(kuduTable)
+      .addPredicate(KuduPredicate.newComparisonPredicate(
+        columnSchema,
+        ComparisonOp.EQUAL,
+        valueWhichWeAreLookingFor
+      ))
+      .setProjectedColumnNames(projectedColumns)
+      .build()
+      .nextRows()
+
 Just on comment here, as it's already said, Kudu is columnar storage, providing projected columns (using `setProjectedColumnNames`) can improve your reading throughput.
 Really user friendly API.
 
