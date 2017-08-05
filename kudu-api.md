@@ -2,9 +2,9 @@
 This my first public post here, but I feel that it could be interested for wide audience in data engineering field.
 Recently we’ve started using [apache kudu](https://kudu.apache.org) as a storage engine. And I want to express my feelings regarding programming API.
 In few words, Kudu has amazing and user-friendly API. There are bindings for different languages:
-- C++
-- Java
-- Python.
+* C++
+* Java
+* Python.
 
 There is also a scala wrapper on java client for spark integration purposes.
 I will describe my experience programming with Kudu based on Java client and spark extensions.
@@ -98,10 +98,10 @@ So looks like it’s a time to show example with range partition. Unfortunately 
 
 It’s not full, but gives enough clue how it could be applied.
 Very important notes here are:
-- ranges can not be overlapped
-- you must call setRangePartitionColumns on client while creating table if you partition by ranges using not full key
-- you must call addRangePartition on client while creating table with initial range, otherwise Kudu will think that you use unbounded range (and because of ranges could not be overlapped you won’t be able to add more ranges later, because any new range will be overlapped with default unbounded range)
-- carefully planing your partition schema could enable so called `partitioning pruning` option. 
+* ranges can not be overlapped
+* you must call setRangePartitionColumns on client while creating table if you partition by ranges using not full key
+* you must call addRangePartition on client while creating table with initial range, otherwise Kudu will think that you use unbounded range (and because of ranges could not be overlapped you won’t be able to add more ranges later, because any new range will be overlapped with default unbounded range)
+* carefully planing your partition schema could enable so called `partitioning pruning` option. 
 
 In example above there is no something like `keyFields` (as in example before), this information now is provided in `val schema: org.apache.kudu.Schema`.
 
